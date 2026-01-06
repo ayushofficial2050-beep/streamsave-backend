@@ -4,16 +4,14 @@ from flask_cors import CORS
 import yt_dlp
 
 app = Flask(__name__)
-# Allow Frontend to talk to Backend
 CORS(app)
 
-# --- Configuration to trick YouTube ---
-# This makes the server look like a real Android Phone
+# Custom User Agent (Android Phone)
 custom_user_agent = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36'
 
 @app.route('/')
 def home():
-    return "StreamSave Server is ON! 🟢"
+    return "StreamSave Server is ON and Ready! 🟢"
 
 @app.route('/analyze', methods=['POST'])
 def analyze_video():
@@ -24,30 +22,30 @@ def analyze_video():
         return jsonify({"error": "No URL provided"}), 400
 
     try:
-        # Fast extraction settings with Anti-Block logic
+        # MAGIC SETTINGS TO BYPASS YOUTUBE BLOCK
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
-            'format': 'best', 
-            'user_agent': custom_user_agent, # TRICK YOUTUBE
+            'format': 'best',
+            'user_agent': custom_user_agent,
             'nocheckcertificate': True,
+            # Ye line YouTube ko confuse karegi ki hum Android App hain
+            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=False)
             
-            # Basic Info
             title = info.get('title', 'Unknown Title')
             thumbnail = info.get('thumbnail', '')
             duration = info.get('duration', 0)
             channel = info.get('uploader', 'Unknown Channel')
             
-            # Format Duration String
+            # Duration String
             m, s = divmod(duration, 60)
             h, m = divmod(m, 60)
             duration_str = f'{h}:{m:02d}:{s:02d}' if h > 0 else f'{m}:{s:02d}'
 
-            # Smart Format Filtering
             formats = []
             seen_qualities = set()
 
@@ -57,17 +55,14 @@ def analyze_video():
                 
                 res_str = f"{resolution}p"
                 ext = f.get('ext', 'mp4')
-                
-                # Calculate Size
                 filesize = f.get('filesize') or f.get('filesize_approx')
                 size_mb = f"{round(filesize / (1024 * 1024), 1)} MB" if filesize else "Unknown"
-
-                # Generate Download Link (Redirect Method)
+                
+                # Redirect Link
                 download_link = f"/download?url={video_url}&format_id={f['format_id']}"
 
                 unique_key = f"{res_str}-{ext}"
                 
-                # Only keep MP4/WEBM and avoid duplicates
                 if unique_key not in seen_qualities and ext in ['mp4', 'webm']:
                     seen_qualities.add(unique_key)
                     formats.append({
@@ -77,7 +72,6 @@ def analyze_video():
                         "download_url": download_link
                     })
 
-            # Sort: Highest Quality First
             formats.sort(key=lambda x: int(x['resolution'].replace('p', '')), reverse=True)
 
             return jsonify({
@@ -90,7 +84,6 @@ def analyze_video():
             })
 
     except Exception as e:
-        # Send the exact error back to Frontend
         return jsonify({"error": str(e)}), 500
 
 @app.route('/download', methods=['GET'])
@@ -99,11 +92,11 @@ def download_video():
     format_id = request.args.get('format_id')
 
     try:
-        # Get the direct Google Video Link and Redirect user
         ydl_opts = {
             'format': format_id,
-            'user_agent': custom_user_agent, # IMP: Need this here too!
+            'user_agent': custom_user_agent,
             'nocheckcertificate': True,
+            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -115,11 +108,11 @@ def download_video():
 def download_audio():
     url = request.args.get('url')
     try:
-        # Best Audio Redirect
         ydl_opts = {
             'format': 'bestaudio/best',
-            'user_agent': custom_user_agent, # IMP: Need this here too!
+            'user_agent': custom_user_agent,
             'nocheckcertificate': True,
+            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
