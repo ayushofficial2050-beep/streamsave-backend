@@ -7,6 +7,10 @@ app = Flask(__name__)
 # Allow Frontend to talk to Backend
 CORS(app)
 
+# --- Configuration to trick YouTube ---
+# This makes the server look like a real Android Phone
+custom_user_agent = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36'
+
 @app.route('/')
 def home():
     return "StreamSave Server is ON! 🟢"
@@ -20,11 +24,13 @@ def analyze_video():
         return jsonify({"error": "No URL provided"}), 400
 
     try:
-        # Fast extraction without downloading
+        # Fast extraction settings with Anti-Block logic
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'format': 'best', 
+            'user_agent': custom_user_agent, # TRICK YOUTUBE
+            'nocheckcertificate': True,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -84,6 +90,7 @@ def analyze_video():
             })
 
     except Exception as e:
+        # Send the exact error back to Frontend
         return jsonify({"error": str(e)}), 500
 
 @app.route('/download', methods=['GET'])
@@ -93,7 +100,11 @@ def download_video():
 
     try:
         # Get the direct Google Video Link and Redirect user
-        ydl_opts = {'format': format_id}
+        ydl_opts = {
+            'format': format_id,
+            'user_agent': custom_user_agent, # IMP: Need this here too!
+            'nocheckcertificate': True,
+        }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             return redirect(info.get('url'))
@@ -105,7 +116,11 @@ def download_audio():
     url = request.args.get('url')
     try:
         # Best Audio Redirect
-        ydl_opts = {'format': 'bestaudio/best'}
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'user_agent': custom_user_agent, # IMP: Need this here too!
+            'nocheckcertificate': True,
+        }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             return redirect(info.get('url'))
